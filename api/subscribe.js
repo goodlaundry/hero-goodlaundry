@@ -39,7 +39,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // STEP 1: Create or Update Profile
+    // STEP 1: Create or Update Profile (NO PHONE - phone may block subscription)
     const profilePayload = {
       data: {
         type: 'profile',
@@ -58,9 +58,10 @@ export default async function handler(req, res) {
       }
     };
 
-    if (formattedPhone) {
-      profilePayload.data.attributes.phone_number = formattedPhone;
-    }
+    // DO NOT add phone to profile - it may be blocking subscription
+    // if (formattedPhone) {
+    //   profilePayload.data.attributes.phone_number = formattedPhone;
+    // }
 
     console.log('Creating profile for:', email);
 
@@ -86,7 +87,7 @@ export default async function handler(req, res) {
       console.log('Duplicate profile found:', profileId);
 
       if (profileId) {
-        // Update existing profile
+        // Update existing profile (NO PHONE)
         const updatePayload = {
           data: {
             type: 'profile',
@@ -105,9 +106,10 @@ export default async function handler(req, res) {
           }
         };
 
-        if (formattedPhone) {
-          updatePayload.data.attributes.phone_number = formattedPhone;
-        }
+        // DO NOT add phone - may block subscription
+        // if (formattedPhone) {
+        //   updatePayload.data.attributes.phone_number = formattedPhone;
+        // }
 
         await fetch(`https://a.klaviyo.com/api/profiles/${profileId}/`, {
           method: 'PATCH',
@@ -128,10 +130,11 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to get profile ID' });
     }
 
-    // STEP 2: Subscribe to Email Marketing
+    // STEP 2: Subscribe to Email Marketing ONLY (no SMS)
     // Small delay to ensure profile is fully created
     await new Promise(resolve => setTimeout(resolve, 500));
     
+    // ONLY email subscription - no SMS (SMS may be blocking if number not verified)
     const subscriptionAttributes = {
       email: email.toLowerCase().trim(),
       subscriptions: {
@@ -143,16 +146,10 @@ export default async function handler(req, res) {
       }
     };
 
-    if (formattedPhone) {
-      subscriptionAttributes.phone_number = formattedPhone;
-      subscriptionAttributes.subscriptions.sms = {
-        marketing: {
-          consent: 'SUBSCRIBED'
-        }
-      };
-    }
+    // DO NOT include SMS subscription - it may be blocking the whole request
+    // if (formattedPhone) { ... }
 
-    // Try WITHOUT profile ID - just use email
+    // Use email only - no profile ID
     const subscribePayload = {
       data: {
         type: 'profile-subscription-bulk-create-job',
