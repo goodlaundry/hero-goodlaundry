@@ -176,6 +176,7 @@ export default async function handler(req, res) {
     };
 
     console.log('Subscribing profile:', profileId);
+    console.log('Subscribe payload:', JSON.stringify(subscribePayload, null, 2));
 
     const subscribeResponse = await fetch('https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs/', {
       method: 'POST',
@@ -187,13 +188,16 @@ export default async function handler(req, res) {
       body: JSON.stringify(subscribePayload)
     });
 
+    const subscribeResponseText = await subscribeResponse.text();
+    console.log('Subscribe response status:', subscribeResponse.status);
+    console.log('Subscribe response body:', subscribeResponseText);
+
     const subscribeSuccess = subscribeResponse.status >= 200 && subscribeResponse.status < 300;
     
     if (subscribeSuccess) {
       console.log('Subscription successful for:', email);
     } else {
-      const subscribeError = await subscribeResponse.text();
-      console.error('Subscription failed:', subscribeResponse.status, subscribeError);
+      console.error('Subscription failed:', subscribeResponse.status, subscribeResponseText);
     }
 
     return res.status(200).json({
@@ -201,6 +205,8 @@ export default async function handler(req, res) {
       profile_id: profileId,
       subscribed: subscribeSuccess,
       subscribe_http_code: subscribeResponse.status,
+      subscribe_response: subscribeResponseText || null,
+      debug_payload_sent: subscribePayload,
       message: 'Thank you for your nomination!'
     });
 
