@@ -1123,9 +1123,11 @@
         });
 
         const data = await response.json();
-        console.log('Response:', response.status, data);
+        console.log('Full API Response:', JSON.stringify(data, null, 2));
         console.log('Subscription HTTP code from Klaviyo:', data.subscribe_http_code);
         console.log('Subscribed:', data.subscribed);
+        console.log('Klaviyo raw response:', data.subscribe_response);
+        console.log('Payload that was sent to Klaviyo:', JSON.stringify(data.debug_payload_sent, null, 2));
 
         if (response.ok && data.success) {
           if (data.subscribed) {
@@ -1133,6 +1135,7 @@
           } else {
             console.warn('%c⚠️ Profile created but subscription may have failed', 'background: orange; color: black;');
             console.warn('Klaviyo subscription HTTP code:', data.subscribe_http_code);
+            console.warn('Klaviyo response:', data.subscribe_response);
           }
           console.log('Profile ID:', data.profile_id);
           return true;
