@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { email, firstName, lastName, causeName, causeLocation, causeWhy } = req.body;
+  const { email, firstName, lastName, phone, causeName, causeLocation, causeWhy } = req.body;
 
   // Validate required fields
   if (!email || !firstName || !lastName) {
@@ -28,6 +28,17 @@ export default async function handler(req, res) {
   const API_REVISION = '2025-04-15';
 
   const cleanEmail = email.toLowerCase().trim();
+
+  // Format phone if provided
+  let formattedPhone = null;
+  if (phone) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 10) {
+      formattedPhone = '+1' + digits;
+    } else if (digits.length === 11 && digits.startsWith('1')) {
+      formattedPhone = '+' + digits;
+    }
+  }
 
   try {
     // STEP 1: Create Profile
@@ -48,6 +59,11 @@ export default async function handler(req, res) {
         }
       }
     };
+
+    // Add phone to profile if provided
+    if (formattedPhone) {
+      profilePayload.data.attributes.phone_number = formattedPhone;
+    }
 
     console.log('Creating profile for:', cleanEmail);
 
