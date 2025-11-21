@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   // Configuration - Good Laundry Klaviyo API
   const PRIVATE_KEY = 'pk_1730e9f934245949c7097b13b459ee070d';
   const LIST_ID = 'SWfNg6';
-  const API_REVISION = '2025-04-15';
+  const API_REVISION = '2025-10-15'; // Match working PHP revision
 
   // Format phone if provided
   let formattedPhone = null;
@@ -129,6 +129,9 @@ export default async function handler(req, res) {
     }
 
     // STEP 2: Subscribe to Email Marketing
+    // Small delay to ensure profile is fully created
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     const subscriptionAttributes = {
       email: email.toLowerCase().trim(),
       subscriptions: {
@@ -149,6 +152,7 @@ export default async function handler(req, res) {
       };
     }
 
+    // Try WITHOUT profile ID - just use email
     const subscribePayload = {
       data: {
         type: 'profile-subscription-bulk-create-job',
@@ -158,7 +162,6 @@ export default async function handler(req, res) {
             data: [
               {
                 type: 'profile',
-                id: profileId,
                 attributes: subscriptionAttributes
               }
             ]
@@ -214,12 +217,3 @@ export default async function handler(req, res) {
     console.error('Error:', error);
     return res.status(500).json({ error: 'Server error', details: error.message });
   }
-}
-
-
-
-
-
-
-
-
