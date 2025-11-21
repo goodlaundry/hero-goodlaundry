@@ -1046,7 +1046,7 @@
       // Format phone if provided
       const formattedPhone = formData.phone ? formatPhoneNumber(formData.phone) : null;
       
-      // Build the profile attributes
+      // Build the profile attributes with explicit subscriptions for consent
       const profileAttributes = {
         email: formData.email,
         first_name: formData.firstName,
@@ -1056,12 +1056,25 @@
           'Cause Location': formData.causeLocation || '',
           'Cause Why': formData.causeWhy || '',
           'Source': 'Cause Nomination Form'
+        },
+        // Explicitly set email marketing consent
+        subscriptions: {
+          email: {
+            marketing: {
+              consent: 'SUBSCRIBED'
+            }
+          }
         }
       };
 
-      // Add phone if provided
+      // Add phone and SMS consent if provided
       if (formattedPhone) {
         profileAttributes.phone_number = formattedPhone;
+        profileAttributes.subscriptions.sms = {
+          marketing: {
+            consent: 'SUBSCRIBED'
+          }
+        };
       }
 
       // Build subscription payload per Klaviyo docs
