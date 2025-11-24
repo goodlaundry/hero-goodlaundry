@@ -1,6 +1,6 @@
 // api/subscribe.js - Vercel Serverless Function for Klaviyo Subscription
 // SECURE VERSION - Uses environment variables for API keys
-// FIXED: Phone number handling and subscription payload format
+// FIXED: Correct payload format per Klaviyo docs - no profile ID in subscription
 
 export default async function handler(req, res) {
   // CORS headers
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // STEP 1: Create/Update Profile with all data including phone
+    // STEP 1: Create/Update Profile with custom properties
     const profilePayload = {
       data: {
         type: 'profile',
@@ -151,7 +151,7 @@ export default async function handler(req, res) {
     }
 
     // STEP 2: Subscribe to Email (and SMS if phone provided)
-    // Build the subscription object dynamically
+    // Per Klaviyo docs: Use email/phone in attributes, NOT profile ID
     const subscriptions = {
       email: {
         marketing: {
@@ -169,16 +169,18 @@ export default async function handler(req, res) {
       };
     }
 
-    const profileAttributes = {
+    // Build profile attributes for subscription (email + phone, NO id)
+    const subscribeProfileAttributes = {
       email: cleanEmail,
       subscriptions: subscriptions
     };
     
     // Include phone in subscription payload if provided
     if (formattedPhone) {
-      profileAttributes.phone_number = formattedPhone;
+      subscribeProfileAttributes.phone_number = formattedPhone;
     }
 
+    // Correct payload format per Klaviyo documentation
     const subscribePayload = {
       data: {
         type: 'profile-subscription-bulk-create-job',
@@ -188,8 +190,8 @@ export default async function handler(req, res) {
             data: [
               {
                 type: 'profile',
-                id: profileId,
-                attributes: profileAttributes
+                attributes: subscribeProfileAttributes
+                // NOTE: No "id" field here - Klaviyo matches by email/phone
               }
             ]
           }
@@ -205,8 +207,7 @@ export default async function handler(req, res) {
       }
     };
 
-    console.log('Subscribing profile:', profileId);
-    console.log('Subscribe payload:', JSON.stringify(subscribePayload, null, 2));
+    console.log('Subscribing profile with payload:', JSON.stringify(subscribePayload, null, 2));
 
     const subscribeResponse = await fetch('https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs/', {
       method: 'POST',
