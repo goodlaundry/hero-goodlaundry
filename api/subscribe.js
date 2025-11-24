@@ -1,5 +1,5 @@
 // api/subscribe.js - Vercel Serverless Function for Klaviyo Subscription
-// CLEAN VERSION - Email only, no phone (matching working Majestic pattern)
+// SECURE VERSION - Uses environment variables for API keys
 
 export default async function handler(req, res) {
   // CORS headers
@@ -22,10 +22,19 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required fields (email, firstName, lastName)' });
   }
 
-  // Configuration - Good Laundry Klaviyo API
-  const PRIVATE_KEY = 'pk_1730e9f934245949c7097b13b459ee070d';
-  const LIST_ID = 'SWfNg6';
+  // Configuration - Get private key from environment variable (NEVER hardcode!)
+  const PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
+  const LIST_ID = process.env.KLAVIYO_LIST_ID || 'SWfNg6';
   const API_REVISION = '2025-04-15';
+
+  // Check that the environment variable is set
+  if (!PRIVATE_KEY) {
+    console.error('KLAVIYO_PRIVATE_KEY environment variable is not set!');
+    return res.status(500).json({ 
+      error: 'Server configuration error', 
+      details: 'API key not configured. Please set KLAVIYO_PRIVATE_KEY in Vercel environment variables.' 
+    });
+  }
 
   const cleanEmail = email.toLowerCase().trim();
 
@@ -102,7 +111,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to get profile ID' });
     }
 
-    // STEP 2: Subscribe to Email (matching Majestic pattern exactly)
+    // STEP 2: Subscribe to Email
     const subscribePayload = {
       data: {
         type: 'profile-subscription-bulk-create-job',
