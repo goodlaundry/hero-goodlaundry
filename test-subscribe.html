@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Klaviyo Subscription Test</title>
+</head>
+<body>
+  <h1>Klaviyo Subscription Test</h1>
+  
+  <form id="testForm">
+    <p><label>Email: <input type="email" id="email" value="testdirect@gmail.com" required></label></p>
+    <p><label>First Name: <input type="text" id="firstName" value="Direct" required></label></p>
+    <p><label>Last Name: <input type="text" id="lastName" value="Test" required></label></p>
+    <p><label>Phone: <input type="tel" id="phone" value="(805) 237-1133"></label></p>
+    <p><button type="submit">Subscribe</button></p>
+  </form>
+  
+  <div id="result" style="margin-top: 20px; padding: 10px; background: #f0f0f0;"></div>
+
+  <script>
+    // Good Laundry Klaviyo Config
+    const COMPANY_ID = 'X987Jt';
+    const LIST_ID = 'SWfNg6';
+    const API_REVISION = '2025-04-15';
+
+    document.getElementById('testForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = 'Subscribing...';
+      
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const firstName = document.getElementById('firstName').value.trim();
+      const lastName = document.getElementById('lastName').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      
+      // Format phone to E.164
+      let formattedPhone = null;
+      if (phone) {
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length === 10) {
+          formattedPhone = '+1' + digits;
+        } else if (digits.length === 11 && digits.startsWith('1')) {
+          formattedPhone = '+' + digits;
+        }
+      }
+      
+      // Build profile attributes - exactly as Klaviyo docs show
+      const profileAttributes = {
+        email: email,
+        first_name: firstName,
+        last_name: lastName,
+        subscriptions: {
+          email: {
+            marketing: {
+              consent: 'SUBSCRIBED'
+            }
+          }
+        }
+      };
+      
+      // Add phone and SMS consent if provided
+      if (formattedPhone) {
+        profileAttributes.phone_number = formattedPhone;
+        profileAttributes.subscriptions.sms = {
+          marketing: {
+            consent: 'SUBSCRIBED'
+          }
+        };
+      }
+      
+      // Client subscription payload - exact format from Klaviyo docs
+      const payload = {
+        data: {
+          type: 'subscription',
+          attributes: {
+            custom_source: 'Cause Nomination Test',
+            profile: {
+              data: {
+                type: 'profile',
+                attributes: profileAttributes
+              }
+            }
+          },
+          relationships: {
+            list: {
+              data: {
+                type: 'list',
+                id: LIST_ID
+              }
+            }
+          }
+        }
+      };
+      
+      console.log('Sending payload:', JSON.stringify(payload, null, 2));
+      
+      try {
+        const response = await fetch(`https://a.klaviyo.com/client/subscriptions/?company_id=${COMPANY_ID}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/vnd.api+json',
+            'revision': API_REVISION
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        console.log('Response status:', response.status);
+        
+        let responseText = '';
+        try {
+          responseText = await response.text();
+          console.log('Response body:', responseText);
+        } catch (e) {
+          console.log('No response body');
+        }
+        
+        if (response.ok || response.status === 202) {
+          resultDiv.innerHTML = `<span style="color: green;">✅ Success! Status: ${response.status}</span><br><br>Check Klaviyo to see if profile is subscribed.<br><br>Response: ${responseText || '(empty)'}`;
+        } else {
+          resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${response.status}</span><br><br>${responseText}`;
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        resultDiv.innerHTML = `<span style="color: red;">❌ Network Error: ${error.message}</span>`;
+      }
+    });
+  </script>
+</body>
+</html>
