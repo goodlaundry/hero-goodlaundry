@@ -1,5 +1,6 @@
 // api/subscribe.js - Vercel Serverless Function for Klaviyo Subscription
 // SECURE VERSION - Uses environment variables for API keys
+// FIXED: Phone number handling and subscription payload format
 
 export default async function handler(req, res) {
   // CORS headers
@@ -22,7 +23,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required fields (email, firstName, lastName)' });
   }
 
-  // Configuration - Get private key from environment variable (NEVER hardcode!)
+  // Configuration - Get from environment variables (NEVER hardcode!)
   const PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
   const LIST_ID = process.env.KLAVIYO_LIST_ID || 'SWfNg6';
   const API_REVISION = '2025-04-15';
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
 
   const cleanEmail = email.toLowerCase().trim();
 
-  // Format phone if provided
+  // Format phone if provided (must be E.164 format: +15551234567)
   let formattedPhone = null;
   if (phone) {
     const digits = phone.replace(/\D/g, '');
@@ -50,7 +51,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // STEP 1: Create Profile
+    // STEP 1: Create/Update Profile with all data including phone
     const profilePayload = {
       data: {
         type: 'profile',
@@ -74,7 +75,7 @@ export default async function handler(req, res) {
       profilePayload.data.attributes.phone_number = formattedPhone;
     }
 
-    console.log('Creating profile for:', cleanEmail);
+    console.log('Creating profile for:', cleanEmail, formattedPhone ? `with phone ${formattedPhone}` : 'no phone');
 
     const profileResponse = await fetch('https://a.klaviyo.com/api/profiles/', {
       method: 'POST',
@@ -95,9 +96,47 @@ export default async function handler(req, res) {
       profileId = profileData.data?.id;
       console.log('New profile created:', profileId);
     } else if (profileResponse.status === 409) {
+      // Profile already exists - get the ID and update it
       const profileData = JSON.parse(profileText);
       profileId = profileData.errors?.[0]?.meta?.duplicate_profile_id;
       console.log('Duplicate profile found:', profileId);
+      
+      // Update existing profile with phone and custom properties
+      if (profileId) {
+        const updatePayload = {
+          data: {
+            type: 'profile',
+            id: profileId,
+            attributes: {
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+              properties: {
+                'Cause Name': causeName || 'Choose for me',
+                'Cause Location': causeLocation || '',
+                'Cause Why': causeWhy || '',
+                'Source': 'Cause Nomination Form',
+                'signup_date': new Date().toISOString()
+              }
+            }
+          }
+        };
+        
+        if (formattedPhone) {
+          updatePayload.data.attributes.phone_number = formattedPhone;
+        }
+        
+        console.log('Updating existing profile with new data...');
+        const updateResponse = await fetch(`https://a.klaviyo.com/api/profiles/${profileId}/`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Klaviyo-API-Key ${PRIVATE_KEY}`,
+            'Content-Type': 'application/json',
+            'revision': API_REVISION
+          },
+          body: JSON.stringify(updatePayload)
+        });
+        console.log('Profile update response:', updateResponse.status);
+      }
     } else {
       console.error('Profile creation failed:', profileResponse.status);
       return res.status(500).json({ 
@@ -111,7 +150,35 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to get profile ID' });
     }
 
-    // STEP 2: Subscribe to Email
+    // STEP 2: Subscribe to Email (and SMS if phone provided)
+    // Build the subscription object dynamically
+    const subscriptions = {
+      email: {
+        marketing: {
+          consent: 'SUBSCRIBED'
+        }
+      }
+    };
+    
+    // Add SMS subscription if phone is provided
+    if (formattedPhone) {
+      subscriptions.sms = {
+        marketing: {
+          consent: 'SUBSCRIBED'
+        }
+      };
+    }
+
+    const profileAttributes = {
+      email: cleanEmail,
+      subscriptions: subscriptions
+    };
+    
+    // Include phone in subscription payload if provided
+    if (formattedPhone) {
+      profileAttributes.phone_number = formattedPhone;
+    }
+
     const subscribePayload = {
       data: {
         type: 'profile-subscription-bulk-create-job',
@@ -122,16 +189,7 @@ export default async function handler(req, res) {
               {
                 type: 'profile',
                 id: profileId,
-                attributes: {
-                  email: cleanEmail,
-                  subscriptions: {
-                    email: {
-                      marketing: {
-                        consent: 'SUBSCRIBED'
-                      }
-                    }
-                  }
-                }
+                attributes: profileAttributes
               }
             ]
           }
@@ -148,6 +206,7 @@ export default async function handler(req, res) {
     };
 
     console.log('Subscribing profile:', profileId);
+    console.log('Subscribe payload:', JSON.stringify(subscribePayload, null, 2));
 
     const subscribeResponse = await fetch('https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs/', {
       method: 'POST',
@@ -169,6 +228,7 @@ export default async function handler(req, res) {
       profile_id: profileId,
       subscribed: subscribeSuccess,
       subscribe_status: subscribeResponse.status,
+      phone_included: !!formattedPhone,
       message: 'Thank you for your nomination!'
     });
 
